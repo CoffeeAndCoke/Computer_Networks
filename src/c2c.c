@@ -1,7 +1,4 @@
-/*
-Simple server writen in C
-Author: Edgar Jaimes
-*/
+
 
 #include <netinet/in.h>
 #include <netdb.h>
@@ -31,9 +28,6 @@ int main(int argc, char * argv[]) {
     
     //Struct for holding the C2C Server information and agent
     struct sockaddr_in c2c_addr;
-    struct sockaddr_in agent_addr;
-    socklen_t agent_length;
-    
     
     //Create a file descriptor for a socket
     int socketDiscriptor;
@@ -53,34 +47,42 @@ int main(int argc, char * argv[]) {
         exit(-1);
     }
     
-    //Create a queue of size 5
+    //Create queue of size 5 and sleep until an agent connects
     listen(socketDiscriptor, 5);
     
-    //Create a new socket for the agent
-    agent_length = sizeof(agent_addr);
-    int agentSocketFD;
-    if((agentSocketFD = accept(socketDiscriptor, (struct sockaddr*) &agent_addr, &agent_length)) < 0) {
-        fprintf(stderr, "ERROR: accept failed\n");
-        exit(-1);
-    }
-    
-    
-    //Start processing
-    int n;
-    if((n = read(agentSocketFD, buffer, 256)) < 0) {
-        fprintf(stderr, "ERROR: Unable to read");
-        exit(-1);
-    }
-    
-    //Print the message
-    printf("Here is the message: %s\n",buffer);
-    
-    //Write back to the client
-    n = write(agentSocketFD,"I got your message",18);
-    
-    if (n < 0) {
-        perror("ERROR writing to socket");
-        exit(1);
+    //Run the program and exit with ctrl-c
+    while(1) {
+       
+	//Structs and FD for every agent that listens
+        struct sockaddr_in agent_addr;
+        socklen_t agent_length;
+	int agentSocketFD;
+	bzero(buffer, 256);
+ 
+        //Create a new socket for the agent
+        agent_length = sizeof(agent_addr);
+        if((agentSocketFD = accept(socketDiscriptor, (struct sockaddr*) &agent_addr, &agent_length)) < 0) {
+            fprintf(stderr, "ERROR: accept failed\n");
+            exit(-1);
+        }
+
+        //Start processing
+        int n;
+        if((n = read(agentSocketFD, buffer, 256)) < 0) {
+            fprintf(stderr, "ERROR: Unable to read\n");
+            exit(-1);
+        }
+
+        //Print the message
+        printf("Here is the message: %s\n",buffer);
+
+        //Write back to the client
+	if ((n = write(agentSocketFD, "I got your message", 256)) < 0) {
+            perror("ERROR writing to socket");
+            exit(-1);
+        }
+
+	close(agentSocketFD);
     }
     
     return 0;
