@@ -21,12 +21,12 @@ struct activeAgents {
     
 };
 
-//Poiinters to the active agents
+//Poiinters to the linked list containing the active agents
 struct activeAgents* head = NULL;
-struct node *current = NULL;
+//struct node *current = NULL;
 
 
-//insert active agent at the start of the list
+//insert active agent at the start of the list with the time it joined
 void insertActiveAgent(char* ip, time_t joinTime) {
     
     struct activeAgents *temp = malloc(sizeof(struct activeAgents));
@@ -40,6 +40,36 @@ void insertActiveAgent(char* ip, time_t joinTime) {
     
     //point first to new first node
     head = temp;
+}
+
+
+void removeActiveAgent(char* ip) {
+    
+    struct activeAgents* ptr = head->next;
+    struct activeAgents* prevPtr = head;
+    
+    //First check if the first node is getting delete
+    //If so, delete it and point the head to the next node
+    if(strcmp(prevPtr->IP, ip) == 0){
+        head = ptr; //Point the head to node after the first
+        free(prevPtr);
+        return;
+    } else {
+        
+        while(ptr) {
+            
+            if(strcmp(ptr->IP, ip) == 0) {
+                prevPtr->next = ptr->next;
+                free(ptr);
+                return;
+            }
+            
+            prevPtr = ptr;
+            ptr = ptr->next;
+        }
+    }
+    
+    return;
 }
 
 //display all the active agents
@@ -61,6 +91,7 @@ void display() {
     printf("\n");
 }
 
+//Checks if an IP address is already in the list of Active Agents
 int inList(char* ip) {
     
     int checkList = 0;
@@ -91,14 +122,15 @@ int main(int argc, char * argv[]) {
         return(0);
     }
     
-    char buffer[256];
-    char JOIN[] = "#JOIN";
-    char LEAVE[] = "#LEAVE";
-    char LIST[] = "#LIST";
-    char LOG[] = "#LOG";
-    
     //Grab the port number from the command line
     int portNumber = atoi(argv[1]);
+    
+    //Used for comparing agent request
+    char buffer[256];
+    const char JOIN[] = "#JOIN";
+    const char LEAVE[] = "#LEAVE";
+    const char LIST[] = "#LIST";
+    const char LOG[] = "#LOG";
     
     
     //Struct for holding the C2C Server information and agent
@@ -123,11 +155,13 @@ int main(int argc, char * argv[]) {
     }
     
     
-    //Create queue of size 5 and sleep until an agent connects
-    char printTime[32];
+    //Time tracking variables
     time_t serverStartTime; //Stores the server local start time
     time_t agentStartTime;
     time(&serverStartTime); //start time of server saved
+    
+    //Create queue of size 5 and sleep until an agent connects
+    char printTime[32];
     listen(socketDiscriptor, 5);
     
     //Run the program and exit with ctrl-c
@@ -146,8 +180,8 @@ int main(int argc, char * argv[]) {
         struct sockaddr_in agent_addr;
         socklen_t agent_length;
         int agentSocketFD;
-        bzero(buffer, 256); //Reset the Buffer
-        //bzero(printTime, 20);//Reset the printTime
+        bzero(buffer, 256); //Reset the Buffer to take in request
+        
  
         //Create a new socket for the agent
         agent_length = sizeof(agent_addr);
@@ -163,7 +197,7 @@ int main(int argc, char * argv[]) {
             exit(-1);
         }
         
-        //READ IN THE REQUEST FROM THE AGENT AND RESPOND
+        //READ IN THE REQUEST FROM THE AGENT AND RESPOND//
         //**********************************************//
         
         //COPY IP ADDRESS FROM AGENT
@@ -186,7 +220,7 @@ int main(int argc, char * argv[]) {
                 //Add IP of the agent to the list along with the time
                 insertActiveAgent(agentIP, agentStartTime);
                 
-                //Write back to the client
+                //Respond to the client
                 if ((n = write(agentSocketFD, "$OK", 256)) < 0) {
                     perror("ERROR writing to socket");
                     exit(-1);
@@ -218,12 +252,23 @@ int main(int argc, char * argv[]) {
             printTime[strlen(printTime) - 1] = '\0'; //Replace the new line
             fprintf(logFile, "%s: Received a “#LEAVE” action from agent %s\n", printTime, agentIP);
             printf ("%s: Received a “#LEAVE” action from agent %s\n", printTime, agentIP);
-            bzero(printTime, 20); //Reset the time
             
             //Check that the agent is in the list first
             if(inList(agentIP) == 1) {
                 
-                printf("REMOVE FROM LIST IMPLEMENT TO DO");
+                
+                //Remove the agent with the given IP
+                removeActiveAgent(agentIP);
+                
+                //Respond to the client
+                if ((n = write(agentSocketFD, "$OK", 256)) < 0) {
+                    perror("ERROR writing to socket");
+                    exit(-1);
+                }
+                
+                //Save to log file and print to console
+                fprintf(logFile, "%s: Responded to agent %s with $OK \n", printTime, agentIP);
+                printf ("%s: Responded to agent %s with $OK \n", printTime, agentIP);
                 
             } else {
                 
